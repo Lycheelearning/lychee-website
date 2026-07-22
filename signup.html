@@ -79,12 +79,23 @@
           <label class="lbl" for="f-msg">Anything you'd like us to know?</label>
           <textarea class="field" id="f-msg" rows="4" placeholder="Your child's interests, your travel plans, questions..."></textarea>
         </div>
-        <button type="submit" class="inline-flex items-center justify-center gap-2 bg-terra text-white font-semibold px-6 py-3.5 rounded-full hover:bg-terra-hover transition-colors text-base">
+        <input type="text" id="f-website" name="website" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px;opacity:0;" aria-hidden="true">
+        <button type="submit" id="signup-btn" class="inline-flex items-center justify-center gap-2 bg-terra text-white font-semibold px-6 py-3.5 rounded-full hover:bg-terra-hover transition-colors text-base">
           Sign up — no obligation <span class="material-symbols-outlined text-lg">arrow_forward</span>
         </button>
-        <p class="hint text-center">Submitting opens a ready-made email in your mail app — just press send. Nothing is stored on this website.
+        <p class="hint text-center">Your details go straight to our team — a real person replies within 2 days.
           Prefer WhatsApp? <a class="text-terra underline" href="https://wa.me/6281325756715?text=Hi%20Lychee%20Learning!%20I%20have%20a%20question%20about%20your%20program." target="_blank" rel="noopener">Message us directly</a>. Or write to <a class="text-terra underline" href="mailto:info@lycheelearning.com">info@lycheelearning.com</a>.</p>
       </form>
+<div id="signup-success" class="hidden bg-sage-light border-2 rounded-xl p-5 text-center" style="border-color:rgba(110,142,91,.35);">
+          <p class="font-semibold text-forest text-lg">Thank you! Your sign-up has been received. 🌱</p>
+          <p class="text-sm text-ink-muted mt-1">We'll get back to you within 2 days to plan the free intake conversation.</p>
+        </div>
+        <div id="signup-error" class="hidden bg-terra-light border-2 rounded-xl p-5 text-center" style="border-color:rgba(181,85,45,.3);">
+          <p class="font-semibold text-terra">Something went wrong sending your sign-up.</p>
+          <p class="text-sm text-ink-muted mt-1">Please try again, or email us directly via the button below.</p>
+          <a id="signup-mailto" href="#" class="inline-block mt-3 text-sm font-semibold text-terra underline">Open a ready-made email instead</a>
+        </div>
+
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
         <div class="bg-sage-light border-2 rounded-xl p-4 text-center" style="border-color:rgba(110,142,91,.25);">
@@ -109,21 +120,52 @@
     </div>
   </footer>
   <script>
-    document.getElementById('signup-form').addEventListener('submit', function (e) {
-      e.preventDefault();
-      var v = function (id) { return document.getElementById(id).value || '-'; };
-      var body = 'Hello Lychee Learning,%0D%0A%0D%0AI would like to sign up for a free intake conversation (no obligation).%0D%0A%0D%0A' +
-        'Parent: ' + encodeURIComponent(v('f-parent')) + '%0D%0A' +
-        'Email: ' + encodeURIComponent(v('f-email')) + '%0D%0A' +
-        'WhatsApp: ' + encodeURIComponent(v('f-whatsapp')) + '%0D%0A' +
-        'Child: ' + encodeURIComponent(v('f-child')) + ' (age ' + encodeURIComponent(v('f-age')) + ')%0D%0A' +
-        'Currently learning: ' + encodeURIComponent(v('f-situation')) + '%0D%0A' +
-        'Program of interest: ' + encodeURIComponent(v('f-program')) + '%0D%0A' +
-        'Learning hub: ' + encodeURIComponent(v('f-hub')) + '%0D%0A%0D%0A' +
-        'Message:%0D%0A' + encodeURIComponent(v('f-msg'));
-      window.location.href = 'mailto:info@lycheelearning.com?subject=' +
-        encodeURIComponent('Sign-up: intake conversation for ' + v('f-child')) + '&body=' + body;
-    });
+    (function () {
+      var form = document.getElementById('signup-form');
+      var v = function (id) { return (document.getElementById(id).value || '').trim(); };
+
+      function mailtoHref() {
+        var line = function (label, id) { return label + ': ' + encodeURIComponent(v(id) || '-') + '%0D%0A'; };
+        var body = 'Hello Lychee Learning,%0D%0A%0D%0AI would like to sign up for a free intake conversation (no obligation).%0D%0A%0D%0A' +
+          line('Parent', 'f-parent') + line('Email', 'f-email') + line('WhatsApp', 'f-whatsapp') +
+          line('Child', 'f-child') + line('Age', 'f-age') + line('Currently learning', 'f-situation') +
+          line('Program of interest', 'f-program') + line('Learning hub', 'f-hub') +
+          '%0D%0AMessage:%0D%0A' + encodeURIComponent(v('f-msg') || '-');
+        return 'mailto:info@lycheelearning.com?subject=' +
+          encodeURIComponent('Sign-up: intake conversation for ' + (v('f-child') || 'our child')) + '&body=' + body;
+      }
+
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var btn = document.getElementById('signup-btn');
+        btn.disabled = true;
+        btn.style.opacity = '0.6';
+        fetch('/api/signup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            parent: v('f-parent'), email: v('f-email'), whatsapp: v('f-whatsapp'),
+            child: v('f-child'), age: v('f-age'), situation: v('f-situation'),
+            program: v('f-program'), hub: v('f-hub'), message: v('f-msg'),
+            website: v('f-website'), source: 'website-signup'
+          })
+        }).then(function (r) {
+          if (!r.ok) throw new Error('status ' + r.status);
+          return r.json();
+        }).then(function () {
+          form.classList.add('hidden');
+          document.getElementById('signup-success').classList.remove('hidden');
+          document.getElementById('signup-success').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }).catch(function () {
+          btn.disabled = false;
+          btn.style.opacity = '';
+          var err = document.getElementById('signup-error');
+          document.getElementById('signup-mailto').href = mailtoHref();
+          err.classList.remove('hidden');
+          err.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+      });
+    })();
   </script>
 <script defer src="/_vercel/insights/script.js"></script>
 </body>
